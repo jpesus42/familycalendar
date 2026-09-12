@@ -197,19 +197,29 @@
     // person's color is ADDED to the event — you don't lose the default.
     feeds: [
       { name: "Mom", feedUrl: "", defaultPeople: ["Mom"] },
-      { name: "Dad", feedUrl: "webcal://p147-caldav.icloud.com/published/2/Mjc4NTM4MTU1Mjc4NTM4Mdjl2n5aQFRPNZBDYMWKqn3SDyhLYkvD_tQtBYx53egvnczEQPPUcMHvQKL68evRQP6IfOv_nLUgg-DJIQRV-eY", defaultPeople: ["Dad"] },
-      { name: "Margot",           feedUrl: "webcal://p147-caldav.icloud.com/published/2/Mjc4NTM4MTU1Mjc4NTM4Mdjl2n5aQFRPNZBDYMWKqn2SM5ytRqAqRzRTuLNPssW_dm9H4VCXNT27PZ1g7v6NOF7BvjhbJHp0abk9kQxJWtQ", defaultPeople: ["Margot"] },
-      { name: "Etta",           feedUrl: "webcal://p147-caldav.icloud.com/published/2/Mjc4NTM4MTU1Mjc4NTM4Mdjl2n5aQFRPNZBDYMWKqn36yrzzT1aWCFaJnYZuIkzOndEYHgDtiyw0e5xW1dmSl3RbR8bDRmP_0jWGH49Vyis", defaultPeople: ["Etta"] },
+      { name: "Dad",
+        feedUrl: "https://delicate-mountain-ff10.jon-pedersen42.workers.dev/?feed=" +
+                 encodeURIComponent("https://p147-caldav.icloud.com/published/2/Mjc4NTM4MTU1Mjc4NTM4Mdjl2n5aQFRPNZBDYMWKqn3SDyhLYkvD_tQtBYx53egvnczEQPPUcMHvQKL68evRQP6IfOv_nLUgg-DJIQRV-eY"),
+        defaultPeople: ["Dad"] },
+      { name: "Margot",
+        feedUrl: "https://delicate-mountain-ff10.jon-pedersen42.workers.dev/?feed=" +
+                 encodeURIComponent("https://p147-caldav.icloud.com/published/2/Mjc4NTM4MTU1Mjc4NTM4Mdjl2n5aQFRPNZBDYMWKqn2SM5ytRqAqRzRTuLNPssW_dm9H4VCXNT27PZ1g7v6NOF7BvjhbJHp0abk9kQxJWtQ"),
+        defaultPeople: ["Margot"] },
+      { name: "Etta",
+        feedUrl: "https://delicate-mountain-ff10.jon-pedersen42.workers.dev/?feed=" +
+                 encodeURIComponent("https://p147-caldav.icloud.com/published/2/Mjc4NTM4MTU1Mjc4NTM4Mdjl2n5aQFRPNZBDYMWKqn36yrzzT1aWCFaJnYZuIkzOndEYHgDtiyw0e5xW1dmSl3RbR8bDRmP_0jWGH49Vyis"),
+        defaultPeople: ["Etta"] },
     ],
 
     refreshIntervalMinutes: 15,
-    const firebaseConfig = {
-  apiKey: "AIzaSyALDITAFOXMCk7VF12m18B3aFiow5wLjSY",
-  authDomain: "family-planner-a4802.firebaseapp.com",
-  projectId: "family-planner-a4802",
-  storageBucket: "family-planner-a4802.firebasestorage.app",
-  messagingSenderId: "917963378699",
-  appId: "1:917963378699:web:0ef7297b24a3345cd8b70e"
+    firebase: {
+      apiKey: "AIzaSyALDITAFOXMCk7VF12m18B3aFiow5wLjSY",
+      authDomain: "family-planner-a4802.firebaseapp.com",
+      projectId: "family-planner-a4802",
+      storageBucket: "family-planner-a4802.firebasestorage.app",
+      messagingSenderId: "917963378699",
+      appId: "1:917963378699:web:0ef7297b24a3345cd8b70e"
+    }
   };
   // ====================================================================
 
