@@ -220,7 +220,7 @@
     <section class="panel chores-panel">
       <h2 class="panel-title"><span>Chores</span></h2>
       <form id="addChoreForm" class="add-chore-row">
-        <input id="newChoreText" type="text" placeholder="Add a chore…" autocomplete="off" />
+        <input id="newChoreText" type="text" placeholder="Add a chore…" autocomplete="off" maxlength="100" />
         <select id="newChoreOwner"></select>
         <button type="submit">Add</button>
       </form>
@@ -903,6 +903,7 @@
   function subscribeToChores() {
     db.collection('chores').orderBy('createdAt', 'asc').onSnapshot(snapshot => {
       choreCache = snapshot.docs.map(doc => Object.assign({ id: doc.id }, doc.data()));
+      document.getElementById('choresStatus').textContent = '';
       renderChores();
     }, err => {
       console.error(err);
@@ -982,6 +983,7 @@
     text.value = editing.text;
     text.setAttribute('aria-label', 'Chore name');
     text.autocomplete = 'off';
+    text.maxLength = 100;   // matches firestore.rules
     text.addEventListener('input', () => { editing.text = text.value; });
     text.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); saveEdit(); }
@@ -1082,7 +1084,8 @@
 
   function toggleChore(id, done) {
     if (db) {
-      db.collection('chores').doc(id).update({ done });
+      db.collection('chores').doc(id).update({ done })
+        .catch(err => choreError('update that chore', err));
     } else {
       const item = localChores.find(c => c.id === id);
       if (item) { item.done = done; renderLocalChores(); }
@@ -1102,7 +1105,8 @@
     if (!text) return;
 
     if (db) {
-      db.collection('chores').add({ text, owner: ownerSelect.value, done: false, createdAt: Date.now() });
+      db.collection('chores').add({ text, owner: ownerSelect.value, done: false, createdAt: Date.now() })
+        .catch(err => choreError('add that chore', err));
     } else {
       localChores.push({ id: 'l' + Date.now(), text, owner: ownerSelect.value, done: false, createdAt: Date.now() });
       renderLocalChores();
