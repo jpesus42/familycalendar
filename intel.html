@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -116,7 +115,25 @@
   }
   .chore-row.done .chore-text { text-decoration: line-through; color: var(--ink-dim); }
   .chore-row input[type=checkbox] { width: 18px; height: 18px; flex: 0 0 auto; }
-  .chore-text { font-size: 15px; }
+  .chore-text { font-size: 15px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .chore-actions { display: flex; gap: 4px; flex: 0 0 auto; }
+  .icon-btn {
+    background: transparent; border: 1px solid transparent; color: var(--ink-dim);
+    min-width: 36px; height: 36px; padding: 0 8px; border-radius: 8px;
+    font-family: var(--font-body); font-size: 14px; cursor: pointer;
+  }
+  .icon-btn:hover, .icon-btn:focus-visible { border-color: var(--rule); color: var(--ink); }
+  .icon-btn.danger { background: #B5483F; border-color: #B5483F; color: #fff; font-weight: 600; font-size: 13px; }
+  .icon-btn.save { background: var(--accent); border-color: var(--accent); color: #26302B; font-weight: 600; }
+  .chore-row.editing { flex-wrap: wrap; }
+  .chore-edit-text {
+    flex: 1 1 100%; min-width: 0; background: var(--bg); border: 1px solid var(--accent); color: var(--ink);
+    padding: 8px 10px; border-radius: 8px; font-family: var(--font-body); font-size: 15px;
+  }
+  .chore-edit-owner {
+    flex: 1 1 auto; min-width: 0; background: var(--bg); color: var(--ink);
+    border: 1px solid var(--rule); border-radius: 8px; padding: 8px; font-family: var(--font-body);
+  }
   .status-note { color: var(--ink-dim); font-size: 13px; margin: 10px 0 0; }
 
   /* date + weather */
@@ -869,29 +886,198 @@
     }
   }
 
+  // The latest chore list, whichever source it came from (Firestore or the local
+  // sample list), so a row can switch into edit mode without waiting on the network.
+  let choreCache = [];
+  let editing = null;          // { id, text, owner } while a chore is being edited
+  let focusEditor = false;     // true right after tapping Edit, so the keyboard opens
+  let confirmingId = null;     // chore whose ✕ is waiting for a second tap
+  let confirmTimer = null;
+
+  function choreError(what, err) {
+    console.error(what, err);
+    document.getElementById('choresStatus').textContent =
+      'Could not ' + what + ' — check your connection and Firestore rules.';
+  }
+
   function subscribeToChores() {
     db.collection('chores').orderBy('createdAt', 'asc').onSnapshot(snapshot => {
-      const list = document.getElementById('choreList');
-      list.innerHTML = '';
-      snapshot.forEach(doc => list.appendChild(choreRow(doc.id, doc.data())));
+      choreCache = snapshot.docs.map(doc => Object.assign({ id: doc.id }, doc.data()));
+      renderChores();
     }, err => {
       console.error(err);
       document.getElementById('choresStatus').textContent = 'Lost connection to the chore list.';
     });
   }
 
+  function renderChores() {
+    const list = document.getElementById('choreList');
+
+    // If someone else deleted the chore being edited, drop the edit.
+    if (editing && !choreCache.some(c => c.id === editing.id)) editing = null;
+
+    // Remember the cursor so a re-render (e.g. someone ticks a chore on another
+    // device) doesn't kick you out of the box you're typing in.
+    const active = document.activeElement;
+    const hadFocus = !!(active && active.classList && active.classList.contains('chore-edit-text'));
+    const selStart = hadFocus ? active.selectionStart : null;
+    const selEnd = hadFocus ? active.selectionEnd : null;
+
+    list.innerHTML = '';
+    choreCache.forEach(c => list.appendChild(choreRow(c.id, c)));
+
+    const box = list.querySelector('.chore-edit-text');
+    if (box && (focusEditor || hadFocus)) {
+      box.focus();
+      if (focusEditor) box.select();
+      else if (selStart !== null) box.setSelectionRange(selStart, selEnd);
+    }
+    focusEditor = false;
+  }
+
   function choreRow(id, data) {
     const li = document.createElement('li');
+    if (editing && editing.id === id) return choreEditRow(li);
+
     li.className = 'chore-row' + (data.done ? ' done' : '');
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.checked = !!data.done;
+    cb.setAttribute('aria-label', 'Mark done: ' + data.text);
     cb.addEventListener('change', () => toggleChore(id, cb.checked));
+
     const label = document.createElement('span');
     label.className = 'chore-text';
     label.textContent = data.text + (data.owner ? ` — ${data.owner}` : '');
-    li.append(cb, label);
+
+    const actions = document.createElement('span');
+    actions.className = 'chore-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.className = 'icon-btn';
+    editBtn.textContent = 'Edit';
+    editBtn.setAttribute('aria-label', 'Edit chore: ' + data.text);
+    editBtn.addEventListener('click', () => startEdit(id));
+
+    const confirming = confirmingId === id;
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'icon-btn' + (confirming ? ' danger' : '');
+    delBtn.textContent = confirming ? 'Delete?' : '✕';
+    delBtn.setAttribute('aria-label', confirming ? 'Tap again to delete: ' + data.text : 'Delete chore: ' + data.text);
+    delBtn.addEventListener('click', () => deleteChore(id));
+
+    actions.append(editBtn, delBtn);
+    li.append(cb, label, actions);
     return li;
+  }
+
+  function choreEditRow(li) {
+    li.className = 'chore-row editing';
+
+    const text = document.createElement('input');
+    text.type = 'text';
+    text.className = 'chore-edit-text';
+    text.value = editing.text;
+    text.setAttribute('aria-label', 'Chore name');
+    text.autocomplete = 'off';
+    text.addEventListener('input', () => { editing.text = text.value; });
+    text.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); saveEdit(); }
+      if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+    });
+
+    const owner = document.createElement('select');
+    owner.className = 'chore-edit-owner';
+    owner.setAttribute('aria-label', 'Who it is assigned to');
+    const names = CONFIG.people.map(p => p.name);
+    // Keep an owner who is no longer in CONFIG.people, rather than silently changing it.
+    if (editing.owner && !names.includes(editing.owner)) names.push(editing.owner);
+    names.forEach(n => {
+      const o = document.createElement('option');
+      o.value = n; o.textContent = n;
+      owner.appendChild(o);
+    });
+    const whole = document.createElement('option');
+    whole.value = ''; whole.textContent = 'Whole family';
+    owner.appendChild(whole);
+    owner.value = editing.owner;
+    owner.addEventListener('change', () => { editing.owner = owner.value; });
+
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.className = 'icon-btn save';
+    save.textContent = 'Save';
+    save.addEventListener('click', saveEdit);
+
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'icon-btn';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', cancelEdit);
+
+    li.append(text, owner, save, cancel);
+    return li;
+  }
+
+  function startEdit(id) {
+    const c = choreCache.find(x => x.id === id);
+    if (!c) return;
+    clearConfirm();
+    editing = { id, text: c.text || '', owner: c.owner || '' };
+    focusEditor = true;
+    renderChores();
+  }
+
+  function cancelEdit() {
+    editing = null;
+    renderChores();
+  }
+
+  function saveEdit() {
+    if (!editing) return;
+    const text = editing.text.trim();
+    if (!text) return;                       // keep editing until there is a name
+    const id = editing.id, owner = editing.owner;
+
+    const item = choreCache.find(x => x.id === id);
+    if (item) { item.text = text; item.owner = owner; }   // show it instantly
+    editing = null;
+    renderChores();
+
+    if (db) {
+      db.collection('chores').doc(id).update({ text, owner })
+        .catch(err => choreError('save that change', err));
+    }
+  }
+
+  function clearConfirm() {
+    clearTimeout(confirmTimer);
+    confirmTimer = null;
+    confirmingId = null;
+  }
+
+  // First tap on ✕ asks "Delete?"; a second tap within 3 seconds deletes.
+  function deleteChore(id) {
+    if (confirmingId !== id) {
+      clearConfirm();
+      confirmingId = id;
+      confirmTimer = setTimeout(() => { clearConfirm(); renderChores(); }, 3000);
+      renderChores();
+      return;
+    }
+    clearConfirm();
+    if (editing && editing.id === id) editing = null;
+
+    if (db) {
+      db.collection('chores').doc(id).delete()
+        .catch(err => choreError('delete that chore', err));
+    } else {
+      const i = localChores.findIndex(c => c.id === id);
+      if (i > -1) localChores.splice(i, 1);
+      renderLocalChores();
+    }
   }
 
   function toggleChore(id, done) {
@@ -904,9 +1090,8 @@
   }
 
   function renderLocalChores() {
-    const list = document.getElementById('choreList');
-    list.innerHTML = '';
-    localChores.forEach(c => list.appendChild(choreRow(c.id, c)));
+    choreCache = localChores;
+    renderChores();
   }
 
   document.getElementById('addChoreForm').addEventListener('submit', (e) => {
